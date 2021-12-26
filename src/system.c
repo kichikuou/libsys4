@@ -18,6 +18,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __ANDROID__
+#include <android/log.h>
+#endif
+
 #include "system4.h"
 #include "system4/utfsjis.h"
 
@@ -69,7 +73,11 @@ mem_alloc void *xrealloc_array(void *dst, size_t old_nmemb, size_t new_nmemb, si
 
 noreturn void sys_verror(const char *fmt, va_list ap)
 {
+#ifdef __ANDROID__
+	__android_log_vprint(ANDROID_LOG_FATAL, "libsys4", fmt, ap);
+#else
 	vfprintf(stderr, fmt, ap);
+#endif
 	sys_exit(1);
 }
 
@@ -82,7 +90,11 @@ noreturn void sys_error(const char *fmt, ...)
 
 void sys_vwarning(const char *fmt, va_list ap)
 {
+#ifdef __ANDROID__
+	__android_log_vprint(ANDROID_LOG_WARN, "libsys4", fmt, ap);
+#else
 	vfprintf(stderr, fmt, ap);
+#endif
 }
 
 void sys_warning(const char *fmt, ...)
