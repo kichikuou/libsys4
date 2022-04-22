@@ -27,6 +27,7 @@ target_sources(sys4 PRIVATE
   src/archive.c
   src/buffer.c
   src/cg.c
+  src/dasm.c
   src/dcf.c
   src/dlf.c
   src/ex.c
