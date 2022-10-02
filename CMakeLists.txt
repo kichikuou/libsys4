@@ -17,6 +17,7 @@ target_compile_definitions(sys4 PRIVATE _DEFAULT_SOURCE)
 target_include_directories(sys4 PUBLIC include PRIVATE src)
 
 target_sources(sys4 PRIVATE
+  src/aar.c
   src/acx.c
   src/afa.c
   src/afa3.c
