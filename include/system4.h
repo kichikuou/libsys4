@@ -31,6 +31,7 @@
 #endif
 #define possibly_unused __attribute__((unused))
 #define warn_unused __attribute__((warn_unused_result))
+#define unlikely(x) __builtin_expect(x, 0)
 
 #define ERROR(fmt, ...) \
 	sys_error("*ERROR*(%s:%s:%d): " fmt "\n", __FILE__, __func__, __LINE__, ##__VA_ARGS__)
@@ -42,6 +43,7 @@
 	sys_message(fmt "\n", ##__VA_ARGS__)
 
 extern bool sys_silent;
+extern void (*sys_error_handler)(const char *msg);
 noreturn void sys_verror(const char *fmt, va_list ap);
 noreturn void sys_error(const char *fmt, ...);
 void sys_vwarning(const char *fmt, va_list ap);

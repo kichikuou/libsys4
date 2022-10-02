@@ -41,25 +41,36 @@ static unsigned long string_hash(const char *_str)
 	return hash;
 }
 
-struct hash_table *ht_create(size_t nr_buckets)
+struct hash_table *ht_create(size_t _nr_buckets)
 {
+	// round nr_buckets up to nearest power of 2
+	size_t nr_buckets = 64;
+	while (nr_buckets < _nr_buckets)
+		nr_buckets <<= 1;
+
 	struct hash_table *ht = xmalloc(sizeof(struct hash_table) + sizeof(struct ht_bucket*)*nr_buckets);
+	memset(ht->buckets, 0, sizeof(struct ht_bucket)*nr_buckets);
 	ht->nr_buckets = nr_buckets;
-	for (size_t i = 0; i < nr_buckets; i++) {
-		ht->buckets[i] = NULL;
-	}
 	return ht;
+}
+
+bool _ht_get(struct hash_table *ht, const char *key, void **out)
+{
+	unsigned long k = string_hash(key) & (ht->nr_buckets - 1);
+	if (!ht->buckets[k])
+		return false;
+	for (size_t i = 0; i < ht->buckets[k]->nr_slots; i++) {
+		if (!strcmp(ht->buckets[k]->slots[i].key, key)) {
+			*out = ht->buckets[k]->slots[i].value;
+			return true;
+		}
+	}
+	return false;
 }
 
 void *ht_get(struct hash_table *ht, const char *key, void *dflt)
 {
-	unsigned long k = string_hash(key) & (ht->nr_buckets - 1);
-	if (!ht->buckets[k])
-		return dflt;
-	for (size_t i = 0; i < ht->buckets[k]->nr_slots; i++) {
-		if (!strcmp(ht->buckets[k]->slots[i].key, key))
-			return ht->buckets[k]->slots[i].value;
-	}
+	_ht_get(ht, key, &dflt);
 	return dflt;
 }
 
@@ -111,6 +122,15 @@ void ht_free(struct hash_table *ht)
 			free(ht->buckets[i]->slots[j].key);
 		}
 		free(ht->buckets[i]);
+	}
+	free(ht);
+}
+
+void ht_free_int(struct hash_table *ht)
+{
+	for (size_t i = 0; i < ht->nr_buckets; i++) {
+		if (ht->buckets[i])
+			free(ht->buckets[i]);
 	}
 	free(ht);
 }

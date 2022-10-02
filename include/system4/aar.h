@@ -1,4 +1,4 @@
-/* Copyright (C) 2019 Nunuhara Cabbage <nunuhara@haniwa.technology>
+/* Copyright (C) 2022 kichikuou <KichikuouChrome@gmail.com>
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,49 +14,41 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef SYSTEM4_AFA_H
-#define SYSTEM4_AFA_H
+#ifndef SYSTEM4_AAR_H
+#define SYSTEM4_AAR_H
 
 #include <stdint.h>
 #include <stddef.h>
 #include <stdio.h>
 #include "system4/archive.h"
 
-struct hash_table;
-
-struct string;
-
-struct afa_entry {
-	struct string *name;
-	uint32_t off;
-	uint32_t size;
-	int32_t no;
-	uint32_t unknown0;
-	uint32_t unknown1;
+enum aar_entry_type {
+	AAR_COMPRESSED = 0,
+	AAR_RAW = 1,
+	AAR_SYMLINK = -1,  // AAR v2+
 };
 
-struct afa_archive {
+struct aar_entry {
+	uint32_t off;
+	uint32_t size;
+	enum aar_entry_type type;
+	char *name;         // points inside aar_archive.index_buf
+	char *link_target;  // points inside aar_archive.index_buf
+};
+
+struct aar_archive {
 	struct archive ar;
 	char *filename;
 	size_t file_size;
 	uint32_t version;
-	uint32_t unknown;
-	uint32_t data_start;
-	uint32_t compressed_size;
-	uint32_t uncompressed_size;
 	uint32_t nr_files;
-	struct afa_entry *files;
-	uint32_t data_size;
+	struct aar_entry *files;
+	uint8_t *index_buf;
+	struct hash_table *ht;  // name -> aar_entry
 	void *mmap_ptr;
 	FILE *f;
-	uint8_t *data;
-	struct hash_table *name_index;
-	struct hash_table *number_index; // afa v1 only
 };
 
-struct afa_archive *afa_open(const char *file, int flags, int *error);
-struct afa_archive *afa_open_conv(const char *file, int flags, int *error,
-				  struct string *(*conv)(const char*,size_t));
-struct archive_data *afa_entry_to_descriptor(struct afa_archive *ar, struct afa_entry *e);
+struct aar_archive *aar_open(const char *file, int flags, int *error);
 
-#endif /* SYSTEM4_AFA_H */
+#endif /* SYSTEM4_AAR_H */
