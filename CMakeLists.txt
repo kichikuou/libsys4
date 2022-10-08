@@ -2,10 +2,8 @@ cmake_minimum_required(VERSION 3.10)
 project(libsys4 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 
-# Why NO_CMAKE_FIND_ROOT_PATH is needed?
-# https://gitlab.kitware.com/cmake/cmake/-/issues/16870
-find_package(libjpeg-turbo REQUIRED NO_CMAKE_FIND_ROOT_PATH)
-find_package(WebP REQUIRED NO_CMAKE_FIND_ROOT_PATH)
+find_package(libjpeg-turbo REQUIRED ONLY_CMAKE_FIND_ROOT_PATH)
+find_package(WebP REQUIRED ONLY_CMAKE_FIND_ROOT_PATH)
 include(${CMAKE_STAGING_PREFIX}/lib/libpng/libpng16.cmake)
 
 find_package(FLEX)
