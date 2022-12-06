@@ -38,6 +38,7 @@ target_sources(sys4 PRIVATE
   src/instructions.c
   src/jpeg.c
   src/mt19937int.c
+  src/pcf.c
   src/pms.c
   src/png.c
   src/qnt.c
