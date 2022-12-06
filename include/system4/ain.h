@@ -379,6 +379,7 @@ int ain_add_functype(struct ain *ain, const char *name);
 int ain_add_delegate(struct ain *ain, const char *name);
 int ain_add_string(struct ain *ain, const char *str);
 int ain_add_message(struct ain *ain, const char *str);
+int ain_add_switch(struct ain *ain);
 int ain_add_file(struct ain *ain, const char *filename);
 
 void ain_free(struct ain *ain);
@@ -389,6 +390,9 @@ void ain_free_globals(struct ain *ain);
 void ain_free_initvals(struct ain *ain);
 void ain_free_structures(struct ain *ain);
 void ain_free_messages(struct ain *ain);
+void ain_free_hll_argument(struct ain_hll_argument *arg);
+void ain_free_hll_function(struct ain_hll_function *f);
+void ain_free_library(struct ain_library *lib);
 void ain_free_libraries(struct ain *ain);
 void ain_free_switches(struct ain *ain);
 void ain_free_scenario_labels(struct ain *ain);

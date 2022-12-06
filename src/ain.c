@@ -78,7 +78,7 @@ static void struct_ht_add(struct ain *ain, intptr_t i)
 	struct ain_struct *s = &ain->structures[i];
 	struct ht_slot *kv = ht_put(ain->_struct_ht, s->name, NULL);
 	if (kv->value) {
-		ERROR("Duplicate structure names: '%s'", s->name);
+		WARNING("Duplicate structure names: '%s'", s->name);
 	}
 	kv->value = (void*)i;
 }
@@ -194,8 +194,10 @@ int ain_get_function(struct ain *ain, char *name)
 		if (name[len] == '#') {
 			char *endptr;
 			n = strtol(name+len+1, &endptr, 10);
-			if (!name[len+1] || *endptr || n < 0)
-				ERROR("Invalid function name: '%s'", name);
+			if (!name[len+1] || *endptr || n < 0) {
+				WARNING("Invalid function name: '%s'", name);
+				n = 0;
+			}
 			name[len] = '\0';
 			break;
 		}
@@ -218,7 +220,8 @@ int ain_get_function_index(struct ain *ain, struct ain_function *f)
 			return i;
 	}
 err:
-	ERROR("Invalid function: '%s'", f->name);
+	WARNING("Invalid function: '%s'", f->name);
+	return 0;
 }
 
 int ain_get_struct(struct ain *ain, char *name)
@@ -417,6 +420,16 @@ int ain_add_message(struct ain *ain, const char *str)
 	ain->messages = xrealloc_array(ain->messages, ain->nr_messages, ain->nr_messages+1, sizeof(struct string*));
 	ain->messages[ain->nr_messages++] = make_string(str, strlen(str));
 	return ain->nr_messages - 1;
+}
+
+int ain_add_switch(struct ain *ain)
+{
+	int no = ain->nr_switches;
+	ain->switches = xrealloc_array(ain->switches, no, no+1, sizeof(struct ain_switch));
+	ain->switches[no].case_type = AIN_SWITCH_INT;
+	ain->switches[no].default_address = -1;
+	ain->nr_switches++;
+	return no;
 }
 
 int ain_add_file(struct ain *ain, const char *filename)
@@ -752,7 +765,7 @@ static void read_variable_initval(struct ain_reader *r, struct ain_variable *v)
 {
 	if ((v->has_initval = read_int32(r))) {
 		if (v->has_initval != 1)
-			ERROR("variable->has_initval is not boolean? %d (at %p)", v->has_initval, r->index - 4);
+			WARNING("variable->has_initval is not boolean: %d (at %p)", v->has_initval, r->index - 4);
 		switch (v->type.data) {
 		case AIN_STRING:
 			v->initval.s = read_string(r);
@@ -782,7 +795,7 @@ static void read_variable_type(struct ain_reader *r, struct ain_type *t)
 	//      array of struct#13 will have struct type 13).
 	if (AIN_VERSION_GTE(r->ain, 11, 0)) {
 		if (t->rank < 0 || t->rank > 1)
-			ERROR("non-boolean rank in ain v11+ (%d, %d, %d)", t->data, t->struc, t->rank);
+			WARNING("non-boolean rank in ain v11+ (%d, %d, %d)", t->data, t->struc, t->rank);
 		if (t->rank)
 			t->array_type = read_array_type(r);
 	}
@@ -832,15 +845,17 @@ static struct ain_function *read_functions(struct ain_reader *r, int count, stru
 			ain->alloc = i;
 
 		// detect game (to apply needed quirks)
-		if (ain->version == 14 && ain->minor_version == 0) {
-			if (!strcmp(funs[i].name, "DohnaDohna@0")) {
-				ain->minor_version = 1;
+		if (ain->version == 14 && ain->minor_version == 1) {
+			// Evenicle 2
+			if (!strcmp(funs[i].name, "C_MedicaMenu@0")) {
+				ain->minor_version = 0;
 			}
-			if (!strcmp(funs[i].name, "AneYume@Initialize")) {
-				ain->minor_version = 1;
+			// Haha Ranman
+			else if (!strcmp(funs[i].name, "CInvasionHexScene@0")) {
+				ain->minor_version = 0;
 			}
-			if (!strcmp(funs[i].name, "_ALICETOOLS_AINV14_01")) {
-				ain->minor_version = 1;
+			else if (!strcmp(funs[i].name, "_ALICETOOLS_AINV14_00")) {
+				ain->minor_version = 0;
 			}
 		}
 
@@ -855,7 +870,7 @@ static struct ain_function *read_functions(struct ain_reader *r, int count, stru
 		if (AIN_VERSION_GTE(ain, 11, 0)) {
 			funs[i].is_lambda = read_int32(r); // known values: 0, 1
 			if (funs[i].is_lambda && funs[i].is_lambda != 1) {
-				ERROR("function->is_lambda is not a boolean? %d (at %p)", funs[i].is_lambda, r->index - 4);
+				WARNING("function->is_lambda is not a boolean: %d (at %p)", funs[i].is_lambda, r->index - 4);
 			}
 		}
 
@@ -1028,11 +1043,15 @@ static struct ain_function_type *read_function_types(struct ain_reader *r, int c
 		const struct instruction *instr;			\
 		for (size_t addr = start; addr < ain->code_size; addr += instruction_width(instr->opcode)) { \
 			uint16_t _fei_opcode = LittleEndian_getW(ain->code, addr); \
-			if (_fei_opcode >= NR_OPCODES)			\
-				ERROR("Unknown/invalid opcode: %u", _fei_opcode); \
+			if (_fei_opcode >= NR_OPCODES) {		\
+				WARNING("Unknown/invalid opcode: %u", _fei_opcode); \
+				break;					\
+			}						\
 			instr = &instructions[_fei_opcode];		\
-			if (addr + instr->nr_args * 4 >= ain->code_size) \
-				ERROR("CODE section truncated?");	\
+			if (addr + instr->nr_args * 4 >= ain->code_size) { \
+				WARNING("CODE section truncated?");	\
+				break;					\
+			}						\
 			user_code;					\
 		}							\
 	} while (0)
@@ -1114,6 +1133,9 @@ static bool read_tag(struct ain_reader *r, struct ain *ain)
 			instructions[DG_STR_TO_METHOD].nr_args = 1;
 			instructions[CALLMETHOD].args[0] = T_INT;
 		}
+		// XXX: default to 14.1 (14.0 games handled individually)
+		if (ain->version == 14)
+			ain->minor_version = 1;
 	} else if (TAG_EQ("KEYC")) {
 		start_section(r, &ain->KEYC);
 		ain->keycode = read_int32(r);
@@ -1523,20 +1545,35 @@ void ain_free_messages(struct ain *ain)
 	ain->nr_messages = 0;
 }
 
+void ain_free_hll_argument(struct ain_hll_argument *arg)
+{
+	free(arg->name);
+	ain_free_type(&arg->type);
+}
+
+void ain_free_hll_function(struct ain_hll_function *f)
+{
+	free(f->name);
+	ain_free_type(&f->return_type);
+	for (int i = 0; i < f->nr_arguments; i++) {
+		ain_free_hll_argument(&f->arguments[i]);
+	}
+	free(f->arguments);
+}
+
+void ain_free_library(struct ain_library *lib)
+{
+	free(lib->name);
+	for (int i = 0; i < lib->nr_functions; i++) {
+		ain_free_hll_function(&lib->functions[i]);
+	}
+	free(lib->functions);
+}
+
 void ain_free_libraries(struct ain *ain)
 {
-	for (int lib = 0; lib < ain->nr_libraries; lib++) {
-		free(ain->libraries[lib].name);
-		for (int f = 0; f < ain->libraries[lib].nr_functions; f++) {
-			free(ain->libraries[lib].functions[f].name);
-			ain_free_type(&ain->libraries[lib].functions[f].return_type);
-			for (int a = 0; a < ain->libraries[lib].functions[f].nr_arguments; a++) {
-				free(ain->libraries[lib].functions[f].arguments[a].name);
-				ain_free_type(&ain->libraries[lib].functions[f].arguments[a].type);
-			}
-			free(ain->libraries[lib].functions[f].arguments);
-		}
-		free(ain->libraries[lib].functions);
+	for (int i = 0; i < ain->nr_libraries; i++) {
+		ain_free_library(&ain->libraries[i]);
 	}
 	free(ain->libraries);
 	ain->libraries = NULL;

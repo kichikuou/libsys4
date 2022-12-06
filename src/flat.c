@@ -169,7 +169,10 @@ static void flat_for_each(struct archive *_ar, void (*iter)(struct archive_data 
 }
 
 static struct archive_ops flat_archive_ops = {
+	.exists = NULL,
 	.get = flat_get,
+	.get_by_name = NULL,
+	.get_by_basename = NULL,
 	.load_file = flat_load_file,
 	.release_file = flat_release_file,
 	.copy_descriptor = flat_copy_descriptor,
@@ -242,7 +245,7 @@ static void read_talt(struct flat_archive *ar)
 		ar->talt_entries[i].off = ar->talt.off + r.index + 8;
 
 		if (strncmp(buffer_strdata(&r), "AJP", 4))
-			ERROR("NOT AN AJP FILE");
+			WARNING("File in flat TALT section is not ajp format");
 
 		buffer_skip(&r, ar->talt_entries[i].size);
 		buffer_align(&r, 4);

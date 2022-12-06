@@ -14,19 +14,11 @@
  * along with this program; if not, see <http://gnu.org/licenses/>.
  */
 
-#ifndef SYSTEM4_DCF_H
-#define SYSTEM4_DCF_H
+#ifndef SYSTEM4_PCF_H
+#define SYSTEM4_PCF_H
 
-#include <stdbool.h>
-#include <stddef.h>
-#include <stdint.h>
+bool pcf_checkfmt(const uint8_t *data);
+bool pcf_get_metrics(const uint8_t *data, size_t size, struct cg_metrics *dst);
+void pcf_extract(const uint8_t *data, size_t size, struct cg *cg);
 
-struct cg;
-struct cg_metrics;
-struct archive;
-
-bool dcf_checkfmt(const uint8_t *data);
-void dcf_extract(const uint8_t *data, size_t size, struct cg *cg, struct archive *ar);
-void dcf_get_metrics(const uint8_t *data, size_t size, struct cg_metrics *m);
-
-#endif /* SYSTEM4_DCF_H */
+#endif // SYSTEM4_PCF_H
