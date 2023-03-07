@@ -18,6 +18,7 @@
 #define SYSTEM4_BUFFER_H
 
 #include <stdint.h>
+#include <stdbool.h>
 #include <stddef.h>
 
 struct buffer {
@@ -37,6 +38,7 @@ void buffer_read_bytes(struct buffer *r, uint8_t *dst, size_t n);
 void buffer_skip(struct buffer *r, size_t off);
 size_t buffer_remaining(struct buffer *r);
 char *buffer_strdata(struct buffer *r);
+bool buffer_check_bytes(struct buffer *r, const char *data, size_t n);
 
 void buffer_write_int32(struct buffer *b, uint32_t v);
 void buffer_write_int32_at(struct buffer *buf, size_t index, uint32_t v);
