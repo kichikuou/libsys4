@@ -42,6 +42,7 @@ target_sources(sys4 PRIVATE
   src/pms.c
   src/png.c
   src/qnt.c
+  src/savefile.c
   src/string.c
   src/system.c
   src/utfsjis.c
