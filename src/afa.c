@@ -34,6 +34,8 @@
 typedef struct string *(*string_conv_fun)(const char*,size_t);
 
 static bool afa_exists(struct archive *ar, int no);
+static bool afa_exists_by_name(struct archive *ar, const char *name, int *id_out);
+static bool afa_exists_by_basename(struct archive *ar, const char *name, int *id_out);
 static struct archive_data *afa_get(struct archive *ar, int no);
 static struct archive_data *afa_get_by_name(struct archive *ar, const char *name);
 static struct archive_data *afa_get_by_basename(struct archive *ar, const char *name);
@@ -44,6 +46,8 @@ static void afa_free(struct archive *ar);
 
 struct archive_ops afa_archive_ops = {
 	.exists = afa_exists,
+	.exists_by_name = afa_exists_by_name,
+	.exists_by_basename = afa_exists_by_basename,
 	.get = afa_get,
 	.get_by_name = afa_get_by_name,
 	.get_by_basename = afa_get_by_basename,
@@ -71,15 +75,16 @@ static struct afa_entry *afa_get_entry_by_basename(struct afa_archive *ar, const
 	if (!ar->basename_index) {
 		ar->basename_index = ht_create(ar->nr_files * 3 / 2);
 		for (unsigned i = 0; i < ar->nr_files; i++) {
-			char *basename = xstrdup(ar->files[i].name->text);
-			char *dot = strrchr(basename, '.');
-			if (dot)
-				*dot = '\0';
+			char *basename = archive_basename(ar->files[i].name->text);
 			ht_put(ar->basename_index, basename, &ar->files[i]);
 			free(basename);
 		}
 	}
-	return ht_get(ar->basename_index, name, NULL);
+
+	char *basename = archive_basename(name);
+	struct afa_entry *entry = ht_get(ar->basename_index, basename, NULL);
+	free(basename);
+	return entry;
 }
 
 static struct afa_entry *afa_get_entry_by_number(struct afa_archive *ar, int no)
@@ -101,6 +106,28 @@ static bool afa_exists(struct archive *_ar, int no)
 {
 	struct afa_archive *ar = (struct afa_archive*)_ar;
 	return !!afa_get_entry_by_number(ar, no);
+}
+
+static bool afa_exists_by_name(struct archive *_ar, const char *name, int *id_out)
+{
+	struct afa_archive *ar = (struct afa_archive*)_ar;
+	struct afa_entry *e = afa_get_entry_by_name(ar, name);
+	if (!e)
+		return false;
+	if (id_out)
+		*id_out = e->no;
+	return true;
+}
+
+static bool afa_exists_by_basename(struct archive *_ar, const char *name, int *id_out)
+{
+	struct afa_archive *ar = (struct afa_archive*)_ar;
+	struct afa_entry *e = afa_get_entry_by_basename(ar, name);
+	if (!e)
+		return false;
+	if (id_out)
+		*id_out = e->no;
+	return true;
 }
 
 static bool afa_load_file(struct archive_data *data)
@@ -217,8 +244,13 @@ static bool afa_read_entry(struct buffer *in, struct afa_archive *ar, struct afa
 	}
 	entry->name->size = name_len; // fix length
 
-	if (ar->version == 1)
-		entry->no = buffer_read_int32(in) - 1;
+	if (ar->version == 1) {
+		// XXX: Oyako Rankan is AFAv1 but all IDs are 0, which breaks load_file.
+		//      We revert to using sequential indices in this case
+		int32_t no = buffer_read_int32(in) - 1;
+		if (no >= 0)
+			entry->no = no;
+	}
 	entry->unknown0 = buffer_read_int32(in);
 	entry->unknown1 = buffer_read_int32(in);
 
