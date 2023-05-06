@@ -19,6 +19,7 @@
 #include <stdlib.h>
 #include "system4.h"
 #include "system4/archive.h"
+#include "system4/bmp.h"
 #include "system4/cg.h"
 #include "system4/file.h"
 #include "system4/ajp.h"
@@ -41,6 +42,7 @@ const char *cg_file_extensions[_ALCG_NR_FORMATS] = {
 	[ALCG_DCF]     = "dcf",
 	[ALCG_JPEG]    = "jpg",
 	[ALCG_PCF]     = "pcf",
+	[ALCG_BMP]     = "bmp",
 };
 
 /*
@@ -68,6 +70,8 @@ enum cg_type cg_check_format(uint8_t *data)
 		return ALCG_JPEG;
 	} else if (pcf_checkfmt(data)) {
 		return ALCG_PCF;
+	} else if (bmp_checkfmt(data)) {
+		return ALCG_BMP;
 	}
 	return ALCG_UNKNOWN;
 }
@@ -99,6 +103,9 @@ bool cg_get_metrics_internal(uint8_t *buf, size_t buf_size, struct cg_metrics *d
 		break;
 	case ALCG_PCF:
 		pcf_get_metrics(buf, buf_size, dst);
+		break;
+	case ALCG_BMP:
+		bmp_get_metrics(buf, buf_size, dst);
 		break;
 	default:
 		WARNING("Unknown CG type");
@@ -165,6 +172,9 @@ static struct cg *cg_load_internal(uint8_t *buf, size_t buf_size, struct archive
 		break;
 	case ALCG_PCF:
 		pcf_extract(buf, buf_size, cg);
+		break;
+	case ALCG_BMP:
+		bmp_extract(buf, buf_size, cg);
 		break;
 	default:
 		WARNING("Unknown CG type");
