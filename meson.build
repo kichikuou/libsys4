@@ -9,7 +9,6 @@ endif
 
 zlib = dependency('zlib', static : static_libs)
 libm = meson.get_compiler('c').find_library('m', required: false)
-tj = dependency('libturbojpeg', static : static_libs)
 webp = dependency('libwebp', static : static_libs)
 png = dependency('libpng', static : static_libs)
 
@@ -37,7 +36,6 @@ system4 = ['src/aar.c',
            'src/ald.c',
            'src/alk.c',
            'src/archive.c',
-           'src/bmp.c',
            'src/buffer.c',
            'src/cg.c',
            'src/dasm.c',
@@ -50,7 +48,6 @@ system4 = ['src/aar.c',
            'src/hashtable.c',
            'src/ini.c',
            'src/instructions.c',
-           'src/jpeg.c',
            'src/mt19937int.c',
            'src/pcf.c',
            'src/pms.c',
@@ -67,7 +64,7 @@ system4 += flexgen.process('src/ini_lexer.l')
 system4 += bisongen.process('src/ini_parser.y')
 
 libsys4 = library('sys4', system4,
-                  dependencies : [libm, zlib, tj, webp, png],
+                  dependencies : [libm, zlib, webp, png],
                   include_directories : [inc, local_inc],
                   install : true)
 

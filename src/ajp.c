@@ -17,7 +17,6 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
-#include <turbojpeg.h>
 #include <webp/decode.h>
 #include <zlib.h>
 #include "little_endian.h"
@@ -25,6 +24,9 @@
 #include "system4/cg.h"
 #include "system4/pms.h"
 #include "system4/webp.h"
+
+#define STBI_NO_STDIO
+#include "stb_image.h"
 
 bool ajp_checkfmt(const uint8_t *data)
 {
@@ -77,7 +79,7 @@ static void ajp_init_metrics(struct ajp_header *ajp, struct cg_metrics *dst)
 	dst->alpha_pitch = 1;
 }
 
-static uint8_t *read_mask(uint8_t *pixels, uint8_t *mask_data, struct ajp_header *ajp)
+static uint8_t *read_mask(uint8_t *mask_data, struct ajp_header *ajp)
 {
 	if (ajp->mask_size && pms8_checkfmt(mask_data)) {
 		return pms_extract_mask(mask_data, ajp->mask_size);
@@ -116,30 +118,22 @@ static uint8_t *read_mask(uint8_t *pixels, uint8_t *mask_data, struct ajp_header
 	return NULL;
 }
 
-static uint8_t *load_mask(uint8_t *pixels, uint8_t *mask_data, struct ajp_header *ajp)
+static void load_mask(uint8_t *pixels, uint8_t *mask_data, struct ajp_header *ajp)
 {
-	uint8_t *mask = read_mask(pixels, mask_data, ajp);
-	if (!mask) {
-		mask = xmalloc(ajp->width * ajp->height);
-		memset(mask, 0xFF, ajp->width * ajp->height);
-	}
+	uint8_t *mask = read_mask(mask_data, ajp);
+	if (!mask)
+		return;
 
-	uint8_t *out = xmalloc(ajp->width * ajp->height * 4);
 	for (int i = 0; i < ajp->width * ajp->height; i++) {
-		out[i*4+0] = pixels[i*3+0];
-		out[i*4+1] = pixels[i*3+1];
-		out[i*4+2] = pixels[i*3+2];
-		out[i*4+3] = mask[i];
+		pixels[i*4+3] = mask[i];
 	}
-	free(pixels);
 	free(mask);
-	return out;
 }
 
 void ajp_extract(const uint8_t *data, size_t size, struct cg *cg)
 {
 	uint8_t *buf = NULL, *jpeg_data = NULL, *mask_data = NULL;
-	int width, height, subsamp;
+	int width, height, channels;
 	struct ajp_header ajp;
 	ajp_extract_header(data, &ajp);
 	ajp_init_metrics(&ajp, &cg->metrics);
@@ -168,21 +162,18 @@ void ajp_extract(const uint8_t *data, size_t size, struct cg *cg)
 	ajp_decrypt(jpeg_data, ajp.jpeg_size);
 	ajp_decrypt(mask_data, ajp.mask_size);
 
-	tjhandle decompressor = tjInitDecompress();
-	tjDecompressHeader2(decompressor, jpeg_data, ajp.jpeg_size, &width, &height, &subsamp);
+	buf = stbi_load_from_memory(jpeg_data, ajp.jpeg_size, &width, &height, &channels, 4);
 	if ((uint32_t)width != ajp.width)
 		WARNING("AJP width doesn't match JPEG width (%d vs. %u)", width, ajp.width);
 	if ((uint32_t)height != ajp.height)
 		WARNING("AJP height doesn't match JPEG height (%d vs. %u)", height, ajp.height);
 
-	buf = xmalloc(width * height * 3);
-	if (tjDecompress2(decompressor, jpeg_data, ajp.jpeg_size, buf, width, 0, height, TJPF_RGB, TJFLAG_FASTDCT) < 0) {
-		WARNING("JPEG decompression failed: %s", tjGetErrorStr());
-		free(buf);
+	if (!buf) {
+		WARNING("JPEG decompression failed: %s", stbi_failure_reason());
 		goto cleanup;
 	}
 
-	buf = load_mask(buf, mask_data, &ajp);
+	load_mask(buf, mask_data, &ajp);
 
 	cg->type = ALCG_AJP;
 	cg->pixels = buf;
@@ -190,5 +181,4 @@ void ajp_extract(const uint8_t *data, size_t size, struct cg *cg)
 cleanup:
 	free(jpeg_data);
 	free(mask_data);
-	tjDestroy(decompressor);
 }

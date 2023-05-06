@@ -19,17 +19,21 @@
 #include <stdlib.h>
 #include "system4.h"
 #include "system4/archive.h"
-#include "system4/bmp.h"
 #include "system4/cg.h"
 #include "system4/file.h"
 #include "system4/ajp.h"
 #include "system4/dcf.h"
-#include "system4/jpeg.h"
 #include "system4/pcf.h"
 #include "system4/pms.h"
 #include "system4/png.h"
 #include "system4/qnt.h"
 #include "system4/webp.h"
+
+#define STBI_NO_STDIO
+#define STBI_ONLY_BMP
+#define STBI_ONLY_JPEG
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 const char *cg_file_extensions[_ALCG_NR_FORMATS] = {
 	[ALCG_UNKNOWN] = "",
@@ -44,6 +48,49 @@ const char *cg_file_extensions[_ALCG_NR_FORMATS] = {
 	[ALCG_PCF]     = "pcf",
 	[ALCG_BMP]     = "bmp",
 };
+
+static bool jpeg_checkfmt(const uint8_t *data)
+{
+	return data[0] == 0xff && data[1] == 0xd8;
+}
+
+static bool bmp_checkfmt(const uint8_t *data)
+{
+	return (data[0] == 'B' && data[1] == 'M');
+}
+
+static void stbi_init_metrics(int w, int h, int ch, struct cg_metrics *dst)
+{
+	dst->w = w;
+	dst->h = h;
+	dst->bpp = ch * 8;
+	dst->has_pixel = true;
+	dst->has_alpha = ch >= 4;
+	dst->pixel_pitch = w * ch;
+	dst->alpha_pitch = 1;
+}
+
+static bool stbi_get_metrics(const uint8_t *data, size_t size, struct cg_metrics *dst)
+{
+	int width, height, channels;
+	if (!stbi_info_from_memory(data, size, &width, &height, &channels))
+		return false;
+	stbi_init_metrics(width, height, channels, dst);
+	return true;
+}
+
+static void stbi_extract(enum cg_type type, const uint8_t *data, size_t size, struct cg *cg)
+{
+	int width, height, channels;
+	uint8_t *pixels = stbi_load_from_memory(data, size, &width, &height, &channels, 4);
+	if (!pixels) {
+		WARNING("cannot decode image: %s", stbi_failure_reason());
+		return;
+	}
+	cg->type = type;
+	cg->pixels = pixels;
+	stbi_init_metrics(width, height, channels, &cg->metrics);
+}
 
 /*
  * Identify cg format
@@ -66,7 +113,7 @@ enum cg_type cg_check_format(uint8_t *data)
 		return ALCG_PMS8;
 	} else if (pms16_checkfmt(data)) {
 		return ALCG_PMS16;
-	} else if (jpeg_cg_checkfmt(data)) {
+	} else if (jpeg_checkfmt(data)) {
 		return ALCG_JPEG;
 	} else if (pcf_checkfmt(data)) {
 		return ALCG_PCF;
@@ -99,13 +146,11 @@ bool cg_get_metrics_internal(uint8_t *buf, size_t buf_size, struct cg_metrics *d
 		pms_get_metrics(buf, dst);
 		break;
 	case ALCG_JPEG:
-		jpeg_cg_get_metrics(buf, buf_size, dst);
+	case ALCG_BMP:
+		stbi_get_metrics(buf, buf_size, dst);
 		break;
 	case ALCG_PCF:
 		pcf_get_metrics(buf, buf_size, dst);
-		break;
-	case ALCG_BMP:
-		bmp_get_metrics(buf, buf_size, dst);
 		break;
 	default:
 		WARNING("Unknown CG type");
@@ -147,7 +192,8 @@ static struct cg *cg_load_internal(uint8_t *buf, size_t buf_size, struct archive
 {
 	struct cg *cg = xcalloc(1, sizeof(struct cg));
 
-	switch (cg_check_format(buf)) {
+	enum cg_type type = cg_check_format(buf);
+	switch (type) {
 	case ALCG_QNT:
 		qnt_extract(buf, cg);
 		break;
@@ -168,13 +214,11 @@ static struct cg *cg_load_internal(uint8_t *buf, size_t buf_size, struct archive
 		pms_extract(buf, buf_size, cg);
 		break;
 	case ALCG_JPEG:
-		jpeg_cg_extract(buf, buf_size, cg);
+	case ALCG_BMP:
+		stbi_extract(type, buf, buf_size, cg);
 		break;
 	case ALCG_PCF:
 		pcf_extract(buf, buf_size, cg);
-		break;
-	case ALCG_BMP:
-		bmp_extract(buf, buf_size, cg);
 		break;
 	default:
 		WARNING("Unknown CG type");
