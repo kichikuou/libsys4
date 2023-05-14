@@ -17,6 +17,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <zlib.h>
 #include "system4.h"
 #include "system4/archive.h"
 #include "system4/cg.h"
@@ -25,15 +26,34 @@
 #include "system4/dcf.h"
 #include "system4/pcf.h"
 #include "system4/pms.h"
-#include "system4/png.h"
 #include "system4/qnt.h"
 #include "system4/webp.h"
 
 #define STBI_NO_STDIO
 #define STBI_ONLY_BMP
 #define STBI_ONLY_JPEG
+#define STBI_ONLY_PNG
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+
+static uint8_t* zlib_compress(uint8_t *data, int data_len, int *out_len, int quality)
+{
+	unsigned long buflen = compressBound(data_len);
+	uint8_t* buf = xmalloc(buflen);
+	if (!buf)
+		return NULL;
+	if (compress2(buf, &buflen, data, data_len, quality) != Z_OK) {
+		free(buf);
+		return NULL;
+	}
+	*out_len = buflen;
+	return buf;
+}
+
+#define STBIW_ZLIB_COMPRESS zlib_compress
+#define STBI_WRITE_NO_STDIO
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb_image_write.h"
 
 const char *cg_file_extensions[_ALCG_NR_FORMATS] = {
 	[ALCG_UNKNOWN] = "",
@@ -48,6 +68,14 @@ const char *cg_file_extensions[_ALCG_NR_FORMATS] = {
 	[ALCG_PCF]     = "pcf",
 	[ALCG_BMP]     = "bmp",
 };
+
+static bool png_checkfmt(const uint8_t *data)
+{
+	const uint8_t png_magic_bytes[] = {
+		0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A
+	};
+	return !memcmp(data, png_magic_bytes, 8);
+}
 
 static bool jpeg_checkfmt(const uint8_t *data)
 {
@@ -103,7 +131,7 @@ enum cg_type cg_check_format(uint8_t *data)
 		return ALCG_QNT;
 	} else if (ajp_checkfmt(data)) {
 		return ALCG_AJP;
-	} else if (png_cg_checkfmt(data)) {
+	} else if (png_checkfmt(data)) {
 		return ALCG_PNG;
 	} else if (webp_checkfmt(data)) {
 		return ALCG_WEBP;
@@ -133,7 +161,9 @@ bool cg_get_metrics_internal(uint8_t *buf, size_t buf_size, struct cg_metrics *d
 		WARNING("AJP GetMetrics not implemented");
 		return false;
 	case ALCG_PNG:
-		png_cg_get_metrics(buf, buf_size, dst);
+	case ALCG_JPEG:
+	case ALCG_BMP:
+		stbi_get_metrics(buf, buf_size, dst);
 		break;
 	case ALCG_WEBP:
 		webp_get_metrics(buf, buf_size, dst);
@@ -144,10 +174,6 @@ bool cg_get_metrics_internal(uint8_t *buf, size_t buf_size, struct cg_metrics *d
 	case ALCG_PMS8:
 	case ALCG_PMS16:
 		pms_get_metrics(buf, dst);
-		break;
-	case ALCG_JPEG:
-	case ALCG_BMP:
-		stbi_get_metrics(buf, buf_size, dst);
 		break;
 	case ALCG_PCF:
 		pcf_get_metrics(buf, buf_size, dst);
@@ -201,7 +227,9 @@ static struct cg *cg_load_internal(uint8_t *buf, size_t buf_size, struct archive
 		ajp_extract(buf, buf_size, cg);
 		break;
 	case ALCG_PNG:
-		png_cg_extract(buf, buf_size, cg);
+	case ALCG_JPEG:
+	case ALCG_BMP:
+		stbi_extract(type, buf, buf_size, cg);
 		break;
 	case ALCG_WEBP:
 		webp_extract(buf, buf_size, cg, ar);
@@ -212,10 +240,6 @@ static struct cg *cg_load_internal(uint8_t *buf, size_t buf_size, struct archive
 	case ALCG_PMS8:
 	case ALCG_PMS16:
 		pms_extract(buf, buf_size, cg);
-		break;
-	case ALCG_JPEG:
-	case ALCG_BMP:
-		stbi_extract(type, buf, buf_size, cg);
 		break;
 	case ALCG_PCF:
 		pcf_extract(buf, buf_size, cg);
@@ -270,13 +294,18 @@ struct cg *cg_load_buffer(uint8_t *buf, size_t buf_size)
 	return cg_load_internal(buf, buf_size, NULL);
 }
 
+static void write_callback(void *context, void *data, int size)
+{
+	fwrite(data, size, 1, (FILE*)context);
+}
+
 int cg_write(struct cg *cg, enum cg_type type, FILE *f)
 {
 	switch (type) {
 	case ALCG_QNT:
 		return qnt_write(cg, f);
 	case ALCG_PNG:
-		return png_cg_write(cg, f);
+		return stbi_write_png_to_func(write_callback, f, cg->metrics.w, cg->metrics.h, 4, cg->pixels, cg->metrics.w * 4);
 	case ALCG_WEBP:
 		return webp_write(cg, f);
 	default:

@@ -10,7 +10,6 @@ endif
 zlib = dependency('zlib', static : static_libs)
 libm = meson.get_compiler('c').find_library('m', required: false)
 webp = dependency('libwebp', static : static_libs)
-png = dependency('libpng', static : static_libs)
 
 flex = find_program('flex')
 bison = find_program('bison')
@@ -51,7 +50,6 @@ system4 = ['src/aar.c',
            'src/mt19937int.c',
            'src/pcf.c',
            'src/pms.c',
-           'src/png.c',
            'src/qnt.c',
            'src/savefile.c',
            'src/string.c',
@@ -64,7 +62,7 @@ system4 += flexgen.process('src/ini_lexer.l')
 system4 += bisongen.process('src/ini_parser.y')
 
 libsys4 = library('sys4', system4,
-                  dependencies : [libm, zlib, webp, png],
+                  dependencies : [libm, zlib, webp],
                   include_directories : [inc, local_inc],
                   install : true)
 
