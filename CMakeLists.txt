@@ -1,9 +1,13 @@
-cmake_minimum_required(VERSION 3.10)
+# CMakeLists.txt for Android build
+
+cmake_minimum_required(VERSION 3.14)
 project(libsys4 LANGUAGES C)
 set(CMAKE_C_STANDARD 11)
 
-find_package(libjpeg-turbo REQUIRED ONLY_CMAKE_FIND_ROOT_PATH)
-find_package(WebP REQUIRED ONLY_CMAKE_FIND_ROOT_PATH)
+find_package(libjpeg-turbo REQUIRED)
+find_package(WebP REQUIRED)
+
+# Assume that libpng is built and installed by upper level CMakeLists.txt
 include(${CMAKE_STAGING_PREFIX}/lib/libpng/libpng16.cmake)
 
 find_package(FLEX)
