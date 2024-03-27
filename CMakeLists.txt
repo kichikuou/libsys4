@@ -7,9 +7,6 @@ set(CMAKE_C_STANDARD 11)
 find_package(libjpeg-turbo REQUIRED)
 find_package(WebP REQUIRED)
 
-# Assume that libpng is built and installed by upper level CMakeLists.txt
-include(${CMAKE_STAGING_PREFIX}/lib/libpng/libpng16.cmake)
-
 find_package(FLEX)
 find_package(BISON)
 
@@ -64,5 +61,6 @@ target_sources(sys4 PRIVATE
   ${BISON_ini_parser_OUTPUTS}
   )
 
-target_link_libraries(sys4 PRIVATE
-  m z log libjpeg-turbo::turbojpeg-static WebP::webp png_static)
+target_link_libraries(sys4
+  PUBLIC zlib libpng
+  PRIVATE m libjpeg-turbo::turbojpeg-static WebP::webp)
