@@ -55,4 +55,8 @@ char *path_basename(const char *path);
 char *path_join(const char *dir, const char *base);
 char *path_get_icase(const char *path);
 
+#ifdef __EMSCRIPTEN__
+void *load_nonresident_file(const char *path, size_t *len_out);
+#endif
+
 #endif /* SYSTEM4_FILE_H */
