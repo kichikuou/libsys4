@@ -162,11 +162,7 @@ struct fnl *fnl_open(const char *path)
 {
 	size_t filesize;
 	struct fnl *fnl = xcalloc(1, sizeof(struct fnl));
-#ifdef __EMSCRIPTEN__
-	fnl->data = load_nonresident_file(path, &filesize);
-#else
 	fnl->data = file_read(path, &filesize);
-#endif
 
 	if (fnl->data[0] != 'F' || fnl->data[1] != 'N' || fnl->data[2] != 'A' || fnl->data[3] != '\0')
 		goto err;

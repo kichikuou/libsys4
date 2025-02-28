@@ -35,10 +35,6 @@
 #include <libgen.h>
 #endif
 
-#ifdef __EMSCRIPTEN__
-#include <emscripten.h>
-#endif
-
 #ifdef _WIN32
 static int make_dir(const char *path, possibly_unused int mode)
 {
@@ -264,20 +260,6 @@ void *file_read(const char *path, size_t *len_out)
 	buf[len] = 0;
 	return buf;
 }
-
-#ifdef __EMSCRIPTEN__
-
-EM_ASYNC_JS(void*, load_nonresident_file, (const char *path, size_t *len_out), {
-	const data = await Module.shell.load_nonresident_file(UTF8ToString(path));
-	if (!data)
-		return 0;
-	const ptr = Module._malloc(data.byteLength);
-	Module.HEAPU8.set(data, ptr);
-	Module.HEAPU32[len_out >> 2] = data.byteLength;
-	return ptr;
-});
-
-#endif
 
 bool file_write(const char *path, uint8_t *data, size_t data_size)
 {
