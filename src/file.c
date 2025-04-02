@@ -35,6 +35,10 @@
 #include <libgen.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif
+
 #ifdef _WIN32
 static int make_dir(const char *path, possibly_unused int mode)
 {
@@ -179,7 +183,13 @@ char *readdir_utf8(UDIR *dir)
 	struct dirent *e = readdir(dir);
 	if (!e)
 		return NULL;
+#ifdef __EMSCRIPTEN__
+	return (char*)EM_ASM_PTR({
+		return stringToNewUTF8(UTF8ToString($0).normalize('NFC'));
+	}, e->d_name);
+#else
 	return strdup(e->d_name);
+#endif
 }
 
 int stat_utf8(const char *path, ustat *st)
